@@ -161,28 +161,64 @@
   }
 
   document.querySelectorAll('[data-copy-code]').forEach((btn) => {
-    const label = btn.querySelector('span:first-child');
-    const originalLabel = label?.textContent || 'Kopírovať YANNI5';
+    const label = btn.querySelector('[data-copy-label]') || btn.querySelector('span:first-child');
+    const status = btn.parentElement?.querySelector('[role="status"]') || document.querySelector('.copy-toast');
+    const originalLabel = label?.textContent || 'Kopírovať kód';
+    let resetTimer = 0;
+    let copyAttempt = 0;
+
+    if (status) status.textContent = '';
+
+    const announce = (message, attempt) => {
+      if (!status) return;
+      status.textContent = '';
+      window.requestAnimationFrame(() => {
+        if (attempt === copyAttempt) status.textContent = message;
+      });
+    };
+
+    const copyWithFallback = (value) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.inset = '0 auto auto -9999px';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      btn.focus({ preventScroll: true });
+      if (!copied) throw new Error('Clipboard fallback failed');
+    };
+
     btn.addEventListener('click', async () => {
+      const attempt = ++copyAttempt;
+      const value = btn.dataset.copyCode || 'YANNI5';
+      window.clearTimeout(resetTimer);
+      btn.removeAttribute('data-copy-state');
       try {
-        await navigator.clipboard.writeText(btn.dataset.copyCode || 'YANNI5');
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value);
+        else copyWithFallback(value);
+        if (attempt !== copyAttempt) return;
+        btn.dataset.copyState = 'success';
+        if (label) label.textContent = 'Skopírované';
+        status?.classList.add('show');
+        announce('Promo kód YANNI5 bol skopírovaný.', attempt);
       } catch {
-        const textarea = document.createElement('textarea');
-        textarea.value = btn.dataset.copyCode || 'YANNI5';
-        textarea.setAttribute('readonly', '');
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
+        if (attempt !== copyAttempt) return;
+        btn.dataset.copyState = 'error';
+        if (label) label.textContent = 'Kopírovanie sa nepodarilo';
+        status?.classList.add('show');
+        announce('Kopírovanie promo kódu YANNI5 sa nepodarilo.', attempt);
       }
-      const toast = btn.parentElement?.querySelector('.copy-toast') || document.querySelector('.copy-toast');
-      if (label) label.textContent = 'Skopírované';
-      if (toast) toast.classList.add('show');
-      window.setTimeout(() => {
+
+      resetTimer = window.setTimeout(() => {
+        if (attempt !== copyAttempt) return;
         if (label) label.textContent = originalLabel;
-        toast?.classList.remove('show');
+        btn.removeAttribute('data-copy-state');
+        status?.classList.remove('show');
+        if (status) status.textContent = '';
       }, 1800);
     });
   });

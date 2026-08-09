@@ -41,6 +41,29 @@
     else window.addEventListener('scroll', loadDeferredScenes, { once: true, passive: true });
   }
 
+  // Load the heavier Run 2 scenes independently as their sections approach.
+  const proximityScenes = [...document.querySelectorAll('[data-proximity-src]')];
+  if (proximityScenes.length) {
+    const loadProximityScene = (scene) => {
+      if (!scene.hasAttribute('src')) scene.src = scene.dataset.proximitySrc;
+      scene.removeAttribute('data-proximity-src');
+    };
+    if ('IntersectionObserver' in window) {
+      const sceneLoader = new IntersectionObserver((entries) => entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        loadProximityScene(entry.target);
+        sceneLoader.unobserve(entry.target);
+      }), { rootMargin: '0px 0px 50% 0px', threshold: 0.01 });
+      proximityScenes.forEach((scene) => sceneLoader.observe(scene));
+    } else {
+      const loadFallbackScenes = () => proximityScenes.forEach(loadProximityScene);
+      window.addEventListener('load', () => {
+        if ('requestIdleCallback' in window) requestIdleCallback(loadFallbackScenes, { timeout: 1200 });
+        else window.setTimeout(loadFallbackScenes, 200);
+      }, { once: true });
+    }
+  }
+
   const setPageInert = (state) => {
     document.querySelectorAll('main, footer, .site-header').forEach((el) => {
       if (state) el.setAttribute('inert', '');
